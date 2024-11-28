@@ -26,6 +26,8 @@ services:
       POSTGRES_USER: ${DATALAKE_DB_USER}
       POSTGRES_PASSWORD: ${DATALAKE_DB_PASSWORD}
       POSTGRES_DB: ${DATALAKE_DB}
+    volumes:
+      - ./datalake_init.sh:/datalake_init.sh
     ports:
       - "${DATALAKE_PORT}:5432"
     command: >
