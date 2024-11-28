@@ -119,6 +119,8 @@ def create_table(**kwargs):
     for index_query in indexes:
         postgres_hook.run(index_query)
 
+    return config["startdate"]
+
 # Get max date or start date
 def get_max_date(**kwargs):
     config = read_config()
@@ -138,6 +140,10 @@ def query_api(**kwargs):
     config = read_config()
     indicator_code = config['indicator_code']
     start_date = str(kwargs['ti'].xcom_pull(task_ids='get_max_date'))
+
+    if start_date == None:
+        start_date = str(kwargs['ti'].xcom_pull(task_ids='create_table'))
+
     end_date = f"{str(calculate_end_date(start_date, config['filter']))}"
     
     filter_start_date = f"{start_date}T00:00:00Z"
@@ -391,7 +397,7 @@ with DAG('<dag_name>', start_date=datetime(2024, 1, 1), catchup=False) as dag:
 
     # Define task dependencies
     start_task >> test_api_task >> test_db_connection_task >> check_table_exists >> [create_table,get_max_date]
-    create_table >> get_max_date >> query_api_task
+    create_table >> query_api_task
     get_max_date >> query_api_task
 
     query_api_task >> upload_to_postgres_task >> delete_file_task >> end_task

@@ -42,17 +42,14 @@ services:
         sudo ufw allow 5432/tcp
         sudo ufw enable
 
-
-        # Restart PostgreSQL to apply changes
-        pg_ctl restart -D /var/lib/postgresql/data
-
         # Create database and set privileges
         psql -U ${DATALAKE_DB_USER} -d postgres -c 'CREATE DATABASE ${DATALAKE_DB};' &&
         psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c 'GRANT ALL PRIVILEGES ON DATABASE ${DATALAKE_DB} TO ${DATALAKE_DB_USER};' &&
         psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c 'ALTER USER ${DATALAKE_DB_USER} WITH SUPERUSER;' &&
-        psql -U ${DATALAKE_DB_USER} -d central_db -c 'CREATE SCHEMA pipeline;'
+        psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c 'CREATE SCHEMA pipeline;'
         
-
+        # Restart PostgreSQL to apply changes
+        pg_ctl restart -D /var/lib/postgresql/data
 
         wait
       "
