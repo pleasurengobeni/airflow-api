@@ -374,7 +374,7 @@ with DAG('<dag_name>', start_date=datetime(2024, 1, 1), catchup=False) as dag:
     create_table = PythonOperator(task_id='create_table', python_callable=create_table,
     dag=dag)
     
-    get_max_date = PythonOperator(task_id='get_max_date', python_callable=get_max_date, provide_context=True,
+    get_max_date = PythonOperator(task_id='get_max_date', python_callable=get_max_date, provide_context=True,trigger_rule=TriggerRule.ALL_SUCCESS,
     dag=dag)
 
     query_api_task = BranchPythonOperator(task_id='query_api', python_callable=query_api, provide_context=True,
