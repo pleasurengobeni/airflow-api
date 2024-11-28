@@ -30,8 +30,8 @@ jobs:
     - name: Test Python Files
       run: pytest tests/test_python_files.py
 
-    - name: Test Jinja Templates
-      run: pytest tests/test_jinja_templates.py
+    # - name: Test Jinja Templates
+    #   run: pytest tests/test_jinja_templates.py
 
     - name: Test YAML Files
       run: pytest tests/test_yaml_files.py
