@@ -407,4 +407,6 @@ with DAG('<dag_name>', start_date=datetime(2024, 1, 1), catchup=False) as dag:
     create_table >> query_api_task
     get_max_date >> query_api_task
 
-    query_api_task >> upload_to_postgres_task >> delete_file_task >> end_task
+    query_api_task >> [upload_to_postgres_task, end_task] 
+    
+    upload_to_postgres_task >> delete_file_task >> end_task
