@@ -145,7 +145,7 @@ services:
 volumes:
   airflow_db_data:
     driver: local
-  datalake_db_data:
+  datalake_data:
     driver: local
   pgadmin_data:
     driver: local
