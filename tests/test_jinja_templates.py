@@ -32,3 +32,7 @@ def test_etl_pipeline_variable(load_template_with_context):
     # Check if the 'etl_pipeline' variable is replaced with the expected value
     expected_value = 'my_etl_pipeline_value'  # Replace this with the actual expected value
     assert expected_value in rendered, f"Expected value '{expected_value}' for 'etl_pipeline' not found in the rendered template"
+
+
+
+
