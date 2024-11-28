@@ -4,7 +4,9 @@
 docker-entrypoint.sh postgres & 
 
 # Wait until PostgreSQL is ready
-until psql -U ${DATALAKE_DB_USER} -d postgres -c 'SELECT 1'; do sleep 1; done;
+until psql -U ${DATALAKE_DB_USER} -d postgres -c 'SELECT 1'; do
+    sleep 1
+done
 
 # Append listen_addresses to postgresql.conf
 echo "listen_addresses = '*'" >> /var/lib/postgresql/data/postgresql.conf
@@ -17,14 +19,16 @@ sudo ufw allow 5432/tcp
 sudo ufw enable
 
 # Create the database and set privileges
-psql -U ${DATALAKE_DB_USER} -d postgres -c "SELECT 1 FROM pg_database WHERE datname='${DATALAKE_DB}'" ||
-psql -U ${DATALAKE_DB_USER} -d postgres -c "CREATE DATABASE ${DATALAKE_DB};"
- &&
-psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "GRANT ALL PRIVILEGES ON DATABASE ${DATALAKE_DB} TO ${DATALAKE_DB_USER};" &&
-psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "ALTER USER ${DATALAKE_DB_USER} WITH SUPERUSER;" &&
+psql -U ${DATALAKE_DB_USER} -d postgres -c "SELECT 1 FROM pg_database WHERE datname='${DATALAKE_DB}'"
+if [ $? -ne 0 ]; then
+    psql -U ${DATALAKE_DB_USER} -d postgres -c "CREATE DATABASE ${DATALAKE_DB};"
+fi
+
+psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "GRANT ALL PRIVILEGES ON DATABASE ${DATALAKE_DB} TO ${DATALAKE_DB_USER};"
+psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "ALTER USER ${DATALAKE_DB_USER} WITH SUPERUSER;"
 
 # Create the schema for the pipeline
-psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "CREATE SCHEMA IF NOT EXISTS pipeline;" &&
+psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "CREATE SCHEMA IF NOT EXISTS pipeline;"
 
 # Create the table inside the schema
 psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
@@ -34,7 +38,7 @@ psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
       insert_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
-" &&
+"
 
 # Create the stored procedure to update execution date
 psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
@@ -49,7 +53,7 @@ psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
     END IF;
   END;
   \$\$ LANGUAGE plpgsql;
-" &&
+"
 
 # Create function to retrieve execution timestamp
 psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
@@ -63,7 +67,7 @@ psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
     RETURN result_timestamp;
   END;
   \$\$ LANGUAGE plpgsql;
-" &&
+"
 
 # Create trigger that will update timestamp on any update to the dag_execution_tracking table
 psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
@@ -71,10 +75,9 @@ psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
   BEFORE UPDATE ON pipeline.dag_execution_tracking
   FOR EACH ROW
   EXECUTE FUNCTION pipeline.update_execution_date(NEW.dag_name, CURRENT_TIMESTAMP);
-" &&
+"
 
-# Restart PostgreSQL to apply changes
-pg_ctl restart -D /var/lib/postgresql/data
+# The PostgreSQL container will automatically reload configurations without needing pg_ctl restart
 
 # Wait for PostgreSQL to continue running
 wait
