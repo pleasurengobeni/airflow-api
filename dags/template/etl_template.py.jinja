@@ -386,8 +386,8 @@ def save_tracking(**kwargs):
     start_date = None
     if not kwargs['ti'].xcom_pull(task_ids='get_max_date') == None:
             start_date = str(kwargs['ti'].xcom_pull(task_ids='get_max_date'))
-        else:
-            start_date = str(kwargs['ti'].xcom_pull(task_ids='create_table'))
+    else:
+        start_date = str(kwargs['ti'].xcom_pull(task_ids='create_table'))
 
     end_date = f"{str(calculate_end_date(start_date, config['filter']))}"
 
