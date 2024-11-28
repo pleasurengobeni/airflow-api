@@ -7,6 +7,8 @@ services:
       POSTGRES_USER: ${AIRFLOW_DB_USER}
       POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD}
       POSTGRES_DB: ${AIRFLOW_DB}
+    env_file:
+      - .env
     volumes:
       - airflow_db_data:/var/lib/postgresql/data
     networks:
@@ -26,6 +28,8 @@ services:
       POSTGRES_USER: ${DATALAKE_DB_USER}
       POSTGRES_PASSWORD: ${DATALAKE_DB_PASSWORD}
       POSTGRES_DB: ${DATALAKE_DB}
+    env_file:
+      - .env
     volumes:
       - ./datalake_init.sh:/datalake_init.sh
     ports:
