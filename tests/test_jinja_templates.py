@@ -22,6 +22,7 @@ def load_template_with_context():
     rendered = template.render(context)
     return rendered
 
+
 def test_etl_pipeline_variable(load_template_with_context):
     """Test that the 'etl_pipeline' variable is rendered correctly."""
     rendered = load_template_with_context
