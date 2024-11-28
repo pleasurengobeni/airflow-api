@@ -373,8 +373,16 @@ def upload_to_postgres(**kwargs):
         insert_df_to_postgres(df, uri, table_schema, table_name)
         update_target_table_from_staging(uri, table_schema, table_name, config["column_mappings"])
 
-        dag_name = kwargs['dag'].dag_id
-        save_dag_execution(dag_name, end_date)
+        
+
+# Delete the file
+def save_tracking(**kwargs):
+
+    dag_name = kwargs['dag'].dag_id
+    save_dag_execution(dag_name, end_date)
+
+
+
 
 
 # Delete the file
@@ -408,20 +416,24 @@ with DAG('<dag_name>', start_date=datetime(2024, 1, 1), catchup=False) as dag:
     start_task = DummyOperator(task_id='start',
     dag=dag)
 
-    test_api_task = PythonOperator(task_id='test_api', python_callable=test_api, provide_context=True,
+    test_api_task = PythonOperator(task_id='test_api', python_callable=test_api, provide_context=True,trigger_rule=TriggerRule.ONE_SUCCESS,
     dag=dag)
 
-    test_db_connection_task = PythonOperator(task_id='test_db_connection', python_callable=test_db_connection, provide_context=True,
+    test_db_connection_task = PythonOperator(task_id='test_db_connection', python_callable=test_db_connection, provide_context=True,trigger_rule=TriggerRule.ONE_SUCCESS,
     dag=dag)
 
     check_table_exists = BranchPythonOperator(
         task_id='check_table_exists',
         python_callable=check_table_exists,
         provide_context=True,
+        trigger_rule=TriggerRule.ONE_SUCCESS,
     dag=dag
     )
+
+    save_tracking = PythonOperator(task_id='save_tracking', python_callable=save_tracking,trigger_rule=TriggerRule.ONE_SUCCESS,
+    dag=dag)
     
-    create_table = PythonOperator(task_id='create_table', python_callable=create_table,
+    create_table = PythonOperator(task_id='create_table', python_callable=create_table,trigger_rule=TriggerRule.ONE_SUCCESS,
     dag=dag)
     
     get_max_date = PythonOperator(task_id='get_max_date', python_callable=get_max_date, provide_context=True,trigger_rule=TriggerRule.ALL_SUCCESS,
@@ -436,7 +448,7 @@ with DAG('<dag_name>', start_date=datetime(2024, 1, 1), catchup=False) as dag:
     delete_file_task = PythonOperator(task_id='delete_file', python_callable=delete_file, provide_context=True, trigger_rule=TriggerRule.ONE_SUCCESS,
     dag=dag)
 
-    end_task = DummyOperator(task_id='end',
+    end_task = DummyOperator(task_id='end',trigger_rule=TriggerRule.ONE_SUCCESS,
     dag=dag)
 
     # Define task dependencies
@@ -444,6 +456,6 @@ with DAG('<dag_name>', start_date=datetime(2024, 1, 1), catchup=False) as dag:
     create_table >> query_api_task
     get_max_date >> query_api_task
 
-    query_api_task >> [upload_to_postgres_task, end_task] 
-    
-    upload_to_postgres_task >> delete_file_task >> end_task
+    query_api_task >> [upload_to_postgres_task, save_tracking] 
+    save_tracking >> end_task
+    upload_to_postgres_task >> delete_file_task >> save_tracking >> end_task

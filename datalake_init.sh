@@ -42,13 +42,13 @@ psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
 
 # Create function to retrieve execution timestamp
 psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
-  CREATE OR REPLACE FUNCTION pipeline.get_execution_timestamp(dag_name VARCHAR) RETURNS TIMESTAMP AS \$\$
+  CREATE OR REPLACE FUNCTION pipeline.get_execution_timestamp(dag_id VARCHAR) RETURNS TIMESTAMP AS \$\$
   DECLARE
     result_timestamp TIMESTAMP;
   BEGIN
     SELECT execution_date INTO result_timestamp
     FROM pipeline.dag_execution_tracking
-    WHERE dag_name = dag_name;
+    WHERE lower(dag_execution_tracking.dag_name) = lower(dag_id);
     RETURN result_timestamp;
   END;
   \$\$ LANGUAGE plpgsql;
