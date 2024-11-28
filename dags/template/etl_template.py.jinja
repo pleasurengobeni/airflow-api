@@ -56,7 +56,6 @@ def test_db_connection(**kwargs):
     
         
 
-# Check if the table exists
 def check_table_exists(**kwargs):
     config = read_config()
 
@@ -76,9 +75,9 @@ def check_table_exists(**kwargs):
     print(result[0])
 
     if result[0]:
-        return 'get_max_date'
+        return 'get_max_date'  # Branch to get_max_date task
     else:
-        return 'create_table'
+        return 'create_table'  # Branch to create_table task
 
 # Create the table
 def create_table(**kwargs):
@@ -391,10 +390,10 @@ with DAG('<dag_name>', start_date=datetime(2024, 1, 1), catchup=False) as dag:
     end_task = DummyOperator(task_id='end',
     dag=dag)
 
-    # Define the task dependencies
-    start_task >> test_api_task >> test_db_connection_task >> check_table_exists_task >> [create_table_task, get_max_date]
-    create_table_task >> get_max_date
-    get_max_date >> query_api_task
+    start_task >> test_api_task >> test_db_connection_task >> check_table_exists_task
+    check_table_exists_task >> create_table_task
+    check_table_exists_task >> get_max_date_task
+    get_max_date_task >> query_api_task
     query_api_task >> [upload_to_postgres_task, delete_file_task]
     upload_to_postgres_task >> delete_file_task 
     delete_file_task >> end_task
