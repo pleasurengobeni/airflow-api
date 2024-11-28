@@ -42,42 +42,18 @@ psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
 
 # Create the stored procedure to update execution date
 psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
-  CREATE OR REPLACE FUNCTION pipeline.update_execution_date(dag_name VARCHAR, new_date TIMESTAMP) RETURNS VOID AS \$\$
+  CREATE OR REPLACE FUNCTION pipeline.update_execution_date(dag_name VARCHAR) RETURNS VOID AS \$\$
   BEGIN
     UPDATE pipeline.dag_execution_tracking
-    SET execution_date = new_date, update_date = CURRENT_TIMESTAMP
+    SET execution_date = CURRENT_TIMESTAMP, update_date = CURRENT_TIMESTAMP
     WHERE dag_name = dag_name;
     IF NOT FOUND THEN
       INSERT INTO pipeline.dag_execution_tracking (dag_name, execution_date)
-      VALUES (dag_name, new_date);
+      VALUES (dag_name, CURRENT_TIMESTAMP);
     END IF;
   END;
   \$\$ LANGUAGE plpgsql;
 "
-
-# Create function to retrieve execution timestamp
-psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
-  CREATE OR REPLACE FUNCTION pipeline.get_execution_timestamp(dag_name VARCHAR) RETURNS TIMESTAMP AS \$\$
-  DECLARE
-    result_timestamp TIMESTAMP;
-  BEGIN
-    SELECT execution_date INTO result_timestamp
-    FROM pipeline.dag_execution_tracking
-    WHERE dag_name = dag_name;
-    RETURN result_timestamp;
-  END;
-  \$\$ LANGUAGE plpgsql;
-"
-
-# Create trigger that will update timestamp on any update to the dag_execution_tracking table
-psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
-  CREATE TRIGGER update_execution_timestamp
-  BEFORE UPDATE ON pipeline.dag_execution_tracking
-  FOR EACH ROW
-  EXECUTE FUNCTION pipeline.update_execution_date(NEW.dag_name, CURRENT_TIMESTAMP);
-"
-
-# The PostgreSQL container will automatically reload configurations without needing pg_ctl restart
 
 # Wait for PostgreSQL to continue running
 wait
