@@ -30,28 +30,8 @@ services:
       - "${DATALAKE_PORT}:5432"
     command: >
       bash -c "
-        docker-entrypoint.sh postgres & 
-        until psql -U ${DATALAKE_DB_USER} -d postgres -c 'SELECT 1'; do sleep 1; done;
-        
-        # Append listen_addresses to postgresql.conf
-        echo \"listen_addresses = '*'\" >> /var/lib/postgresql/data/postgresql.conf
-        
-        # Append the connection rule to pg_hba.conf
-        echo \"host    all             all             0.0.0.0/0            md5\" >> /var/lib/postgresql/data/pg_hba.conf
-        
-        sudo ufw allow 5432/tcp
-        sudo ufw enable
-
-        # Create database and set privileges
-        psql -U ${DATALAKE_DB_USER} -d postgres -c 'CREATE DATABASE ${DATALAKE_DB};' &&
-        psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c 'GRANT ALL PRIVILEGES ON DATABASE ${DATALAKE_DB} TO ${DATALAKE_DB_USER};' &&
-        psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c 'ALTER USER ${DATALAKE_DB_USER} WITH SUPERUSER;' &&
-        psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c 'CREATE SCHEMA pipeline;'
-        
-        # Restart PostgreSQL to apply changes
-        pg_ctl restart -D /var/lib/postgresql/data
-
-        wait
+        chmod +x /datalake_init.sh &&  # Ensure the script is executable
+        /datalake_init.sh  # Run the initialization script
       "
     networks:
       - airflow-network
