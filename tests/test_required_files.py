@@ -8,7 +8,8 @@ required_files = [
     'requirements.txt',
     'dags/custom_dags/dag_builder.py',
     'dags/template/etl_template.py.jinja',
-    '.env'
+    '.env',
+    'datalake_init.sh'
 ]
 
 # Check for any JSON files in the 'dags/config' directory
