@@ -1,0 +1,400 @@
+import json
+import os
+import requests
+import uuid
+from datetime import datetime, timedelta
+from airflow import DAG
+from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.python_operator import PythonOperator
+from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.hooks.base_hook import BaseHook
+from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.operators.python import BranchPythonOperator
+import pandas as pd
+import pyarrow.parquet as pq
+import pyarrow as pa
+from airflow.utils.trigger_rule import TriggerRule
+from airflow.models import Variable
+import decimal
+from sqlalchemy import create_engine, text
+import psycopg2
+
+
+# Read the config file
+def read_config():
+    with open('<config_file>', 'r') as file:
+        config = json.load(file)
+    return config
+
+def get_postgres_hook():
+
+    environment = Variable.get('environment', default_var='dev')
+    config = read_config()
+    conn_id = config['postgres']['prod'] if environment == 'prod' else config['postgres']['dev']
+    return PostgresHook(postgres_conn_id=conn_id, schema='central_db')
+
+    
+
+    
+# Test API connectivity
+def test_api(**kwargs):
+    config = read_config()
+    url = f"https://ghoapi.azureedge.net/api/{config['indicator_code']}"
+   
+    response = requests.get(url)
+    response.raise_for_status()
+        
+        
+
+# Test DB connection
+def test_db_connection(**kwargs):
+
+    
+    hook = get_postgres_hook()
+    print(type(hook))
+    hook.run("SELECT 1")
+    
+        
+
+# Check if the table exists
+def check_table_exists(**kwargs):
+    config = read_config()
+
+    postgres_hook = get_postgres_hook()
+    table_name = f"{config['indicator_name']}_{config['indicator_code']}"
+    table_schema = config['schema']
+
+    # Query to check if the table exists
+    query = f"""
+    SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE lower(table_name) = lower('{table_name}')
+            and lower(table_schema) = lower('{table_schema}')
+    );
+    """
+    result = postgres_hook.get_first(query)
+    print(result[0])
+
+    if result[0]:
+        return 'get_max_date'
+    else:
+        return 'create_table'
+
+# Create the table
+def create_table(**kwargs):
+    config = read_config()
+    postgres_hook = get_postgres_hook()
+    table_schema = config['schema']
+    table_name = f"{config['indicator_name']}_{config['indicator_code']}"
+    
+    column_mapping = config["column_mappings"]
+    create_table_query = f"CREATE TABLE IF NOT EXISTS {table_schema}.{table_name} ("
+    create_table_query_stg = f"CREATE TABLE IF NOT EXISTS pipeline.{table_schema}_{table_name}_staging ("
+
+    columns = []
+    indexes = []
+
+    for column in column_mapping:
+        column_name = column['field-name']
+        datatype = column['datatype']
+        index = column.get('index', False)
+
+        columns.append(f"{column_name} {datatype}")
+
+        if index:
+            indexes.append(f"CREATE INDEX IF NOT EXISTS idx_{table_schema}_{table_name}_{column_name} ON {table_schema}.{table_name} ({column_name})")
+    
+    create_table_query += "batch_upload_date timestamp default CURRENT_TIMESTAMP,"
+    create_table_query += ", ".join(columns) + ")"
+
+    create_table_query_stg += "batch_upload_date timestamp,"
+    create_table_query_stg += ", ".join(columns) + ")"
+
+    # Log the query (optional)
+    print(f"CREATE TABLE Query: {create_table_query}")
+
+    postgres_hook.run(f"CREATE SCHEMA IF NOT EXISTS {table_schema};")
+
+    postgres_hook.run(create_table_query)
+    postgres_hook.run(create_table_query_stg)
+
+    for index_query in indexes:
+        postgres_hook.run(index_query)
+
+# Get max date or start date
+def get_max_date(**kwargs):
+    config = read_config()
+    start_date = config['startdate']
+    table_schema = config['schema']
+    table_name = f"{config['indicator_name']}_{config['indicator_code']}"
+
+    postgres_hook = get_postgres_hook()
+
+    # Get the max date from the table or the start date if the table is empty
+    query = f"SELECT coalesce(MAX(Date), '{start_date}'::timestamp)::date FROM {table_schema}.{table_name}"
+    max_date = postgres_hook.get_first(query)[0]
+    return max_date
+
+# Query the API
+def query_api(**kwargs):
+    config = read_config()
+    indicator_code = config['indicator_code']
+    start_date = str(kwargs['ti'].xcom_pull(task_ids='get_max_date'))
+    end_date = f"{str(calculate_end_date(start_date, config['filter']))}"
+    
+    filter_start_date = f"{start_date}T00:00:00Z"
+    filter_end_date = f"{end_date}T23:59:59Z"
+    
+    get_url = config['get_url'].replace('<indicator_code>', indicator_code).replace('<startdate>', filter_start_date).replace('<enddate>', filter_end_date)
+    print(get_url)
+
+    # Make the API request
+    response = requests.get(get_url)
+    data = response.json()
+
+    if data:
+
+        df1 = pd.DataFrame(data["value"])
+        df = df1.drop_duplicates()
+        df.columns = df.columns.str.lower()
+        print(df.columns.tolist())
+
+        # Store data to a Parquet file
+        parquet_file_path = f"/opt/airflow/api_dump/{config['indicator_name']}/{indicator_code}/{start_date}_{end_date}.parquet"
+        os.makedirs(os.path.dirname(parquet_file_path), exist_ok=True)
+
+        fields = []
+        column_mappings = config["column_mappings"]
+
+        # Convert columns based on column mappings
+        for column in column_mappings:
+            field_name = column['field-name'].lower()  # Case-insensitive
+            datatype = column['datatype'].lower()
+
+            # Handle the conversion
+            if datatype == "integer":
+                df[field_name] = df[field_name].fillna(0).astype('int32')  # Convert to integer
+            elif datatype == "bigint":
+                df[field_name] = df[field_name].fillna(0).astype('int64')  # Convert to bigint
+            elif datatype == "varchar":
+                df[field_name] = df[field_name].astype(str)  # Convert to string
+            elif datatype == "decimal":
+                df[field_name] = df[field_name].apply(
+                    lambda x: decimal.Decimal(str(round(x, 2))) if pd.notnull(x) else None
+                )  # Convert to Decimal with rounding
+            elif datatype == "timestamp":
+                df[field_name] = pd.to_datetime(df[field_name], errors='coerce')  # Convert to timestamp
+            else:
+                df[field_name] = df[field_name].astype(str)  # Default to string
+
+        for column in column_mappings:
+
+            field_name = column['field-name'].lower()
+            datatype = column['datatype'].lower()
+
+            # Map to PyArrow types based on datatype
+            if datatype == "integer":
+                pa_type = pa.int32()
+            elif datatype == "bigint":
+                pa_type = pa.int64()
+            elif datatype == "varchar":
+                pa_type = pa.string()
+            elif datatype == "decimal":
+                pa_type = pa.decimal128(18, 2)
+            elif datatype == "timestamp":
+                pa_type = pa.timestamp('ms')  # Millisecond precision
+            else:
+                pa_type = pa.string()
+
+            fields.append(pa.field(field_name, pa_type))
+
+            # Create PyArrow schema
+            schema = pa.schema(fields)
+
+            # Convert DataFrame to PyArrow Table with the defined schema
+            arrow_table = pa.Table.from_pandas(df, schema=schema, preserve_index=False)
+
+            # Save to Parquet
+            pa.parquet.write_table(arrow_table, parquet_file_path)
+    
+        return 'upload_to_postgres'
+
+    return 'end'
+
+# Calculate the end date based on the filter
+def calculate_end_date(start_date, filter_type):
+    start_date_obj = datetime.strptime(start_date, "%Y-%m-%d")
+    if filter_type == 'yearly':
+        return (start_date_obj + timedelta(days=365)).strftime("%Y-%m-%d")
+    elif filter_type == 'weekly':
+        return (start_date_obj + timedelta(weeks=1)).strftime("%Y-%m-%d")
+    elif filter_type == 'daily':
+        return start_date
+    elif filter_type == 'monthly':
+        return (start_date_obj + timedelta(days=30)).strftime("%Y-%m-%d")
+
+def insert_df_to_postgres(df, connection_uri, table_schema, table_name):
+
+    # Create engine
+    engine = create_engine(connection_uri)
+    
+    # Convert the DataFrame to a list of tuples for inserting into PostgreSQL
+    data_to_insert = list(df.itertuples(index=False, name=None))
+
+    # Create a connection to the PostgreSQL database
+    with psycopg2.connect(connection_uri) as conn:
+        with conn.cursor() as cursor:
+            # Prepare the INSERT statement
+            columns = ', '.join(df.columns)
+            placeholders = ', '.join(['%s'] * len(df.columns))  # Generate placeholders based on the number of columns
+            insert_sql = f"INSERT INTO pipeline.{table_schema}_{table_name}_staging ({columns}) VALUES ({placeholders})"
+
+            # Execute the INSERT statement for each row in the DataFrame
+            cursor.executemany(insert_sql, data_to_insert)
+
+            # Commit the transaction
+            conn.commit()
+            print(f"Data inserted into {table_name} staging was successfully.")
+
+def update_target_table_from_staging(db_url, table_schema, table_name, column_mapping):
+
+    # Create the database engine
+    engine = create_engine(db_url)
+
+    # Define the target table and staging table names
+    target_table = f"{table_schema}.{table_name}"
+    staging_table = f"pipeline.{table_schema}_{table_name}_staging"
+
+    # Extract column names from the column_mapping (excluding batch_upload_date)
+    column_names = [col["field-name"] for col in column_mapping if col["field-name"] != "batch_upload_date"]
+    
+    # Generate the list of placeholders for the insert statement (used in SELECT)
+    placeholders = ", ".join(column_names)
+
+    # Build the dynamic SQL query using EXCEPT to avoid inserting duplicates
+    query = f"""
+    INSERT INTO {target_table} ({", ".join(column_names)})
+    SELECT {placeholders}
+    FROM {staging_table}
+    EXCEPT
+    SELECT {placeholders}
+    FROM {target_table};
+    """
+
+    # Execute the query
+    with engine.connect() as connection:
+        connection.execute(text(query))
+
+    print("Target table updated successfully.")
+    
+
+# Upload to Postgres
+def upload_to_postgres(**kwargs):
+
+    config = read_config()
+    table_name = f"{config['indicator_name']}_{config['indicator_code']}"
+    table_schema = config['schema']
+    indicator_code = config['indicator_code']
+    start_date = str(kwargs['ti'].xcom_pull(task_ids='get_max_date'))
+    end_date = calculate_end_date(start_date, config['filter'])
+
+    parquet_file_path = f"/opt/airflow/api_dump/{config['indicator_name']}/{indicator_code}/{start_date}_{end_date}.parquet"
+    
+    # Check if the file exists
+    if not os.path.exists(parquet_file_path):
+        raise FileNotFoundError(f"The Parquet file does not exist at the path: {parquet_file_path}")
+
+    # Read the Parquet file into a pandas DataFrame
+    df = pd.read_parquet(parquet_file_path)
+
+    if not df.empty:
+
+        # Generate the new columns
+        batch_upload_date = datetime.now()  # Current timestamp
+        
+
+        # Insert the new columns at the specified positions (0 and 1)
+        df.insert(0, 'batch_upload_date', batch_upload_date)  # Insert batch_upload_date at index 0
+
+        # Establish a connection to PostgreSQL using the PostgresHook
+        postgres_hook = get_postgres_hook()  # This should match your connection ID in Airflow
+
+        # Get the connection parameters from Airflow connection
+        conn = postgres_hook.get_conn()
+        host = conn.info.host
+        dbname = conn.info.dbname
+        user = conn.info.user
+        password = conn.info.password
+        port = conn.info.port
+
+        # Create an SQLAlchemy engine
+        uri = f'postgresql://{user}:{password}@{host}:{port}/{dbname}'
+
+        insert_df_to_postgres(df, uri, table_schema, table_name)
+        update_target_table_from_staging(uri, table_schema, table_name, config["column_mappings"])
+
+# Delete the file
+def delete_file(**kwargs):
+
+    config = read_config()
+    indicator_code = config['indicator_code']
+    start_date = str(kwargs['ti'].xcom_pull(task_ids='get_max_date'))
+    print('XXXXXXXX', start_date)
+    
+    if not start_date == None:
+        end_date = calculate_end_date(start_date, config['filter'])
+        postgres_hook = get_postgres_hook()
+        table_schema = config['schema']
+        table_name = f"{config['indicator_name']}_{config['indicator_code']}"
+
+        postgres_hook.run(f"truncate table pipeline.{table_schema}_{table_name}_staging;")
+
+        parquet_file_path = f"/opt/airflow/api_dump/{config['indicator_name']}/{indicator_code}/{start_date}_{end_date}.parquet"
+        
+        if os.path.exists(parquet_file_path):
+            os.remove(parquet_file_path)
+
+# Define the DAG
+with DAG('<dag_name>', start_date=datetime(2024, 1, 1), catchup=False) as dag:
+    
+    start_task = DummyOperator(task_id='start',
+    dag=dag)
+
+    test_api_task = PythonOperator(task_id='test_api', python_callable=test_api, provide_context=True,
+    dag=dag)
+
+    test_db_connection_task = PythonOperator(task_id='test_db_connection', python_callable=test_db_connection, provide_context=True,
+    dag=dag)
+
+    check_table_exists_task = BranchPythonOperator(
+        task_id='check_table_exists',
+        python_callable=check_table_exists,
+        provide_context=True,
+    dag=dag
+    )
+    
+    create_table_task = PythonOperator(task_id='create_table', python_callable=create_table,
+    dag=dag)
+    
+    get_max_date = PythonOperator(task_id='get_max_date', python_callable=get_max_date, provide_context=True,
+    dag=dag)
+
+    query_api_task = BranchPythonOperator(task_id='query_api', python_callable=query_api, provide_context=True,
+    dag=dag)
+    
+    upload_to_postgres_task = PythonOperator(task_id='upload_to_postgres', python_callable=upload_to_postgres, provide_context=True,
+    dag=dag)
+
+    delete_file_task = PythonOperator(task_id='delete_file', python_callable=delete_file, provide_context=True, trigger_rule=TriggerRule.ALL_DONE,
+    dag=dag)
+
+    end_task = DummyOperator(task_id='end',
+    dag=dag)
+
+    # Define the task dependencies
+    start_task >> test_api_task >> test_db_connection_task >> check_table_exists_task >> [create_table_task, get_max_date]
+    create_table_task >> get_max_date
+    get_max_date >> query_api_task
+    query_api_task >> [upload_to_postgres_task, delete_file_task]
+    upload_to_postgres_task >> delete_file_task 
+    delete_file_task >> end_task
