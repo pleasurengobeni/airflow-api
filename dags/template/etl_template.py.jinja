@@ -245,7 +245,7 @@ def save_dag_execution(dag_name, execution_date):
     postgres_hook = get_postgres_hook()
 
     sql = """
-    CALL pipeline.update_execution_date(%s, %s);
+    select pipeline.update_execution_date(%s, %s);
     """
     postgres_hook.run(sql, parameters=(dag_name, execution_date))
 
