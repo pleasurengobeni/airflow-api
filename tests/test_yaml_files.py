@@ -1,5 +1,6 @@
 import pytest
 import yaml
+import os
 
 def test_yaml_files():
     yaml_files = [f for f in os.listdir('dags/config') if f.endswith('.yaml')]
