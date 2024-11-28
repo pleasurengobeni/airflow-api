@@ -382,6 +382,8 @@ def upload_to_postgres(**kwargs):
 
 # Delete the file
 def save_tracking(**kwargs):
+
+    config = read_config()
     
     start_date = None
     if not kwargs['ti'].xcom_pull(task_ids='get_max_date') == None:
