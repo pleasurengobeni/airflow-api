@@ -34,8 +34,6 @@ def get_postgres_hook():
     return PostgresHook(postgres_conn_id=conn_id, schema='central_db')
 
     
-
-    
 # Test API connectivity
 def test_api(**kwargs):
     config = read_config()
