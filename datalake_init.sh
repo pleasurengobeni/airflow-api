@@ -38,7 +38,7 @@ psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
 
 # Create or replace the function to update execution date
 psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
-  CREATE OR REPLACE FUNCTION pipeline.update_execution_date(dag_name VARCHAR, new_date TIMESTAMP) RETURNS VOID AS $$
+  CREATE OR REPLACE FUNCTION pipeline.update_execution_date(dag_name VARCHAR, new_date TIMESTAMP) RETURNS VOID AS \$\$
   BEGIN
     UPDATE pipeline.dag_execution_tracking
     SET execution_date = new_date, update_date = CURRENT_TIMESTAMP
@@ -48,12 +48,12 @@ psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
       VALUES (dag_name, new_date);
     END IF;
   END;
-  $$ LANGUAGE plpgsql;
+  \$\$ LANGUAGE plpgsql;
 "
 
 # Create or replace the function to retrieve execution timestamp
 psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
-  CREATE OR REPLACE FUNCTION pipeline.get_execution_timestamp(dag_name VARCHAR) RETURNS TIMESTAMP AS $$
+  CREATE OR REPLACE FUNCTION pipeline.get_execution_timestamp(dag_name VARCHAR) RETURNS TIMESTAMP AS \$\$
   DECLARE
     result_timestamp TIMESTAMP;
   BEGIN
@@ -62,7 +62,7 @@ psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
     WHERE dag_name = dag_name;
     RETURN result_timestamp;
   END;
-  $$ LANGUAGE plpgsql;
+  \$\$ LANGUAGE plpgsql;
 "
 
 # Create the trigger to update the timestamp before any update on the table

@@ -32,6 +32,7 @@ services:
       - .env
     volumes:
       - ./datalake_init.sh:/datalake_init.sh
+      - datalake_data:/var/lib/postgresql/data
     ports:
       - "${DATALAKE_PORT}:5432"
     command: >
