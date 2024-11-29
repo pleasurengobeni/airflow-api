@@ -178,7 +178,7 @@ def query_api(**kwargs):
     response = requests.get(get_url)
     data = response.json()
 
-    if "[value]:" in data:
+    if data.get("value") is not None:
         if data["value"]:
             df1 = pd.DataFrame(data["value"])
             df = df1.drop_duplicates()
