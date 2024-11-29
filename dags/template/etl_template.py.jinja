@@ -172,12 +172,11 @@ def query_api(**kwargs):
     response = requests.get(get_url)
     data = response.json()
 
-    if data["value"]:
+    if "value" in data:
 
         df1 = pd.DataFrame(data["value"])
         df = df1.drop_duplicates()
         df.columns = df.columns.str.lower()
-        print(df.columns.tolist())
 
         # Store data to a Parquet file
         parquet_file_path = f"/opt/airflow/api_dump/{config['indicator_name']}/{indicator_code}/{start_date}_{end_date}.parquet"
@@ -400,7 +399,7 @@ def save_tracking(**kwargs):
     else:
         start_date = str(kwargs['ti'].xcom_pull(task_ids='create_table'))
 
-    start_date = (start_date - timedelta(days=1))
+    start_date = (parse(start_date) - timedelta(days=1))
     end_date = f"{str(calculate_end_date(start_date, config['filter']))}"
 
     dag_name = kwargs['dag'].dag_id
