@@ -143,9 +143,9 @@ def get_max_date(**kwargs):
         query = f"SELECT coalesce(MAX(timedimensionend), '{start_date}'::timestamp)::date FROM {table_schema}.{table_name}"
         max_date = postgres_hook.get_first(query)[0]
     
-    final_max_date = (max_date + timedelta(days=1)) if max_date else None
+    final_max_date = (parse(str(max_date)) + timedelta(days=1)) if max_date else None
 
-    return final_max_date
+    return final_max_date.date().isoformat()
 
 # Query the API
 def query_api(**kwargs):
@@ -400,6 +400,7 @@ def save_tracking(**kwargs):
     else:
         start_date = str(kwargs['ti'].xcom_pull(task_ids='create_table'))
 
+    start_date = (start_date - timedelta(days=1))
     end_date = f"{str(calculate_end_date(start_date, config['filter']))}"
 
     dag_name = kwargs['dag'].dag_id
@@ -431,7 +432,7 @@ def delete_file(**kwargs):
             os.remove(parquet_file_path)
 
 # Define the DAG
-with DAG('<dag_name>', start_date=datetime(2024, 1, 1), catchup=False) as dag:
+with DAG('<dag_name>', start_date=datetime(2024, 1, 1), catchup=False, max_active_runs=1) as dag:
     
     start_task = DummyOperator(task_id='start',
     dag=dag)
