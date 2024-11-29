@@ -430,7 +430,7 @@ def delete_file(**kwargs):
             os.remove(parquet_file_path)
 
 # Define the DAG
-with DAG('<dag_name>', start_date=datetime(2024, 1, 1), catchup=False, max_active_runs=1) as dag:
+with DAG('<dag_name>', schedule_interval=config["schedule_interval"] , start_date=datetime(2024, 1, 1), catchup=False, max_active_runs=1) as dag:
     
     start_task = DummyOperator(task_id='start',
     dag=dag)
