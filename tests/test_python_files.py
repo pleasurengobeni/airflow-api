@@ -13,7 +13,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from dags.custom_dags.dag_builder import generate_etl_dag_file  # Now this import will work
 
-
 class TestGenerateETLDagFile(unittest.TestCase):
 
     @patch("builtins.open", new_callable=mock_open)
