@@ -182,7 +182,8 @@ def query_api(**kwargs):
         if data["value"]:
             df1 = pd.DataFrame(data["value"])
             df = df1.drop_duplicates()
-
+            df.columns = df.columns.str.lower()
+            
             # Store data to a Parquet file
             parquet_file_path = f"/opt/airflow/api_dump/{config['indicator_name']}/{indicator_code}/{start_date}_{end_date}.parquet"
             os.makedirs(os.path.dirname(parquet_file_path), exist_ok=True)
