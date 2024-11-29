@@ -72,11 +72,21 @@ with DAG(
                     group_id=f"{indicator_name}"
                 )
 
-            # Create a dummy task for the indicator_name
-            indicator_name_task = DummyOperator(
-                task_id=f"{indicator_name}_dummy",
-                task_group=indicator_task_groups[indicator_name]
-            )
+            # # Create a dummy task for the indicator_name
+            # indicator_name_task = DummyOperator(
+            #     task_id=f"{indicator_name}_dummy",
+            #     task_group=indicator_task_groups[indicator_name]
+            # )
+            indicator_name_task = None
+            if f"{indicator_name}_dummy" not in globals():
+                # Create a dummy task for the indicator_name if it doesn't exist
+                indicator_name_task = DummyOperator(
+                    task_id=f"{indicator_name}_dummy",
+                    task_group=indicator_task_groups[indicator_name]
+                )
+            else:
+                # If the task already exists, just assign it
+                indicator_name_task = globals()[f"{indicator_name}_dummy"]
 
             # Create a task for each indicator_code under the respective indicator_name
             indicator_code_task = PythonOperator(
