@@ -56,14 +56,14 @@ psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
 
 # Create the stored procedure to update execution date
 psql -U ${DATALAKE_DB_USER} -d ${DATALAKE_DB} -c "
-  CREATE OR REPLACE FUNCTION pipeline.update_execution_date(dag_name VARCHAR, enddate TIMESTAMP) RETURNS VOID AS \$\$
+  CREATE OR REPLACE FUNCTION pipeline.update_execution_date(dag_id VARCHAR, enddate TIMESTAMP) RETURNS VOID AS \$\$
   BEGIN
     UPDATE pipeline.dag_execution_tracking
     SET execution_date = enddate, update_date = CURRENT_TIMESTAMP
-    WHERE dag_name = dag_name;
+    WHERE dag_name = dag_id;
     IF NOT FOUND THEN
       INSERT INTO pipeline.dag_execution_tracking (dag_name, execution_date)
-      VALUES (dag_name, enddate);
+      VALUES (dag_id, enddate);
     END IF;
   END;
   \$\$ LANGUAGE plpgsql;
