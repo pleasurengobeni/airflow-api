@@ -3,7 +3,7 @@
     "indicator_code": "SA_0000001686",
     "indicator_url": "https://ghoapi.azureedge.net/api/Indicator?$filter=contains(IndicatorName,'Wine')",
     "filter": "yearly",
-    "startdate": "2000-01-01",
+    "startdate": "1999-12-31",
     "schedule_interval":"*/10 * * * *",
     "get_url": "https://ghoapi.azureedge.net/api/<indicator_code>?$filter=TimeDimensionBegin ge <startdate> and TimeDimensionEnd lt <enddate>",
     "schema": "ghoapi",
