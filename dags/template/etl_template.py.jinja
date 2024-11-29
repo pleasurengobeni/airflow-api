@@ -131,8 +131,10 @@ def get_max_date(**kwargs):
     print('dag_name', dag_name)
     max_date = get_execution_timestamp(dag_name)
     print('max_date', max_date)
-    max_date = (parse(str(max_date)) + timedelta(days=1)) if max_date else start_date
-    print('max_date', max_date)
+
+    f_max_date = (parse(str(max_date)) + timedelta(days=1)) if max_date else start_date
+    
+    print('max_date', f_max_date)
 
     return max_date
 
@@ -420,6 +422,8 @@ def delete_file(**kwargs):
         
         if os.path.exists(parquet_file_path):
             os.remove(parquet_file_path)
+        
+        kwargs['ti'].xcom_clear()
 
 # Define the DAG
 with DAG('<dag_name>', schedule_interval=read_config()["schedule_interval"] , start_date=datetime(2024, 1, 1), catchup=False, max_active_runs=1) as dag:
