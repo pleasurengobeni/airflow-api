@@ -1,0 +1,144 @@
+{
+    "indicator_name": "ALCOHOLTYPE_SA_WINE",
+    "indicator_code": "SA_0000001830",
+    "indicator_url": "https://ghoapi.azureedge.net/api/Indicator?$filter=contains(IndicatorName,'Wine')",
+    "filter": "monthly",
+    "startdate": "2016-01-01",
+    "get_url": "https://ghoapi.azureedge.net/api/<indicator_code>?$filter=TimeDimensionBegin ge <startdate> and TimeDimensionEnd lt <enddate>",
+    "schema": "ghoapi",
+    "use_api_key": false,
+    "api_key": null,
+    "postgres": {
+        "prod": "data_lake" ,
+        "dev": "data_lake"
+    },
+    "column_mappings": [
+      
+        {
+          "field-name": "Id",
+          "datatype": "INTEGER",
+          "index": true
+        },
+        {
+          "field-name": "IndicatorCode",
+          "datatype": "VARCHAR",
+          "index": true
+        },
+        {
+          "field-name": "SpatialDimType",
+          "datatype": "VARCHAR",
+          "index": true
+        },
+        {
+          "field-name": "SpatialDim",
+          "datatype": "VARCHAR",
+          "index": true
+        },
+        {
+          "field-name": "TimeDimType",
+          "datatype": "VARCHAR",
+          "index": true
+        },
+        {
+          "field-name": "ParentLocationCode",
+          "datatype": "VARCHAR",
+          "index": true
+        },
+        {
+          "field-name": "ParentLocation",
+          "datatype": "VARCHAR",
+          "index": false
+        },
+        {
+          "field-name": "Dim1Type",
+          "datatype": "VARCHAR",
+          "index": false
+        },
+        {
+          "field-name": "TimeDim",
+          "datatype": "INTEGER",
+          "index": true
+        },
+        {
+          "field-name": "Dim1",
+          "datatype": "VARCHAR",
+          "index": false
+        },
+        {
+          "field-name": "Dim2Type",
+          "datatype": "VARCHAR",
+          "index": false
+        },
+        {
+          "field-name": "Dim2",
+          "datatype": "VARCHAR",
+          "index": false
+        },
+        {
+          "field-name": "Dim3Type",
+          "datatype": "VARCHAR",
+          "index": false
+        },
+        {
+          "field-name": "Dim3",
+          "datatype": "VARCHAR",
+          "index": false
+        },
+        {
+          "field-name": "DataSourceDimType",
+          "datatype": "VARCHAR",
+          "index": true
+        },
+        {
+          "field-name": "DataSourceDim",
+          "datatype": "VARCHAR",
+          "index": true
+        },
+        {
+          "field-name": "Value",
+          "datatype": "VARCHAR",
+          "index": false
+        },
+        {
+          "field-name": "NumericValue",
+          "datatype": "DECIMAL",
+          "index": true
+        },
+        {
+          "field-name": "Low",
+          "datatype": "DECIMAL",
+          "index": false
+        },
+        {
+          "field-name": "High",
+          "datatype": "DECIMAL",
+          "index": false
+        },
+        {
+          "field-name": "Comments",
+          "datatype": "VARCHAR",
+          "index": false
+        },
+        {
+          "field-name": "Date",
+          "datatype": "TIMESTAMP",
+          "index": true
+        },
+        {
+          "field-name": "TimeDimensionValue",
+          "datatype": "VARCHAR",
+          "index": false
+        },
+        {
+          "field-name": "TimeDimensionBegin",
+          "datatype": "TIMESTAMP",
+          "index": true
+        },
+        {
+          "field-name": "TimeDimensionEnd",
+          "datatype": "TIMESTAMP",
+          "index": true
+        }
+    ]
+  }
+  
