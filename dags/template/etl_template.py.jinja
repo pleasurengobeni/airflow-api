@@ -126,26 +126,15 @@ def create_table(**kwargs):
 def get_max_date(**kwargs):
     config = read_config()
     start_date = config['startdate']
-    table_schema = config['schema']
-    table_name = f"{config['indicator_name']}_{config['indicator_code']}"
     dag_name = kwargs['dag'].dag_id
-    
-    postgres_hook = get_postgres_hook()
 
-    # Get the execution date for the DAG, if available
-    execution_date = get_execution_timestamp(dag_name)
-    
-    # If execution date is available, use it; otherwise, use the max date from the table
-    if execution_date:
-        max_date = execution_date
-    else:
-        # Get the max date from the table or the start date if the table is empty
-        query = f"SELECT coalesce(MAX(timedimensionend), '{start_date}'::timestamp)::date FROM {table_schema}.{table_name}"
-        max_date = postgres_hook.get_first(query)[0]
-    
-    final_max_date = (parse(str(max_date)) + timedelta(days=1)) if max_date else None
+    print('dag_name', dag_name)
+    max_date = get_execution_timestamp(dag_name)
+    print('max_date', max_date)
+    max_date = (parse(str(max_date)) + timedelta(days=1)) if max_date else start_date
+    print('max_date', max_date)
 
-    return final_max_date.date().isoformat()
+    return max_date
 
 # Query the API
 def query_api(**kwargs):
@@ -158,9 +147,9 @@ def query_api(**kwargs):
     else:
         start_date = str(kwargs['ti'].xcom_pull(task_ids='create_table'))
 
-        
+    print('start_date', start_date)
     end_date = f"{str(calculate_end_date(start_date, config['filter']))}"
-    
+    print('end_date', end_date)
 
     filter_start_date = f"{start_date}T00:00:00Z"
     filter_end_date = f"{end_date}T23:59:59Z"
@@ -172,11 +161,12 @@ def query_api(**kwargs):
     response = requests.get(get_url)
     data = response.json()
 
-    if "[value]:" in data:
+    if data.get("value") is not None:
         if data["value"]:
             df1 = pd.DataFrame(data["value"])
             df = df1.drop_duplicates()
-
+            df.columns = df.columns.str.lower()
+            
             # Store data to a Parquet file
             parquet_file_path = f"/opt/airflow/api_dump/{config['indicator_name']}/{indicator_code}/{start_date}_{end_date}.parquet"
             os.makedirs(os.path.dirname(parquet_file_path), exist_ok=True)
@@ -264,21 +254,23 @@ def get_execution_timestamp(dag_name):
 
 # Calculate the end date based on the filter
 def calculate_end_date(start_date, filter_type):
-    if start_date:
-        start_date_obj = start_date if isinstance(start_date, datetime) else parse(start_date)
-        
-        if filter_type == 'yearly':
-            return (start_date_obj + relativedelta(years=1)).date().isoformat()
-        elif filter_type == 'weekly':
-            return (start_date_obj + relativedelta(weeks=1)).date().isoformat()
-        elif filter_type == 'daily':
-            return start_date  # No change for daily, return as-is
-        elif filter_type == 'monthly':
-            return (start_date_obj + relativedelta(months=1)).date().isoformat()
-        else:
-            raise ValueError(f"Unknown filter_type: {filter_type}")
-    else:
+    if not start_date:
         raise ValueError("start_date cannot be None")
+
+    start_date_obj = start_date if isinstance(start_date, datetime) else parse(start_date)
+    
+    if filter_type == 'yearly':
+        # Calculate the last day of the same year
+        return (start_date_obj + relativedelta(years=1) - relativedelta(days=1)).date().isoformat()
+    elif filter_type == 'weekly':
+        return (start_date_obj + relativedelta(weeks=1)).date().isoformat()
+    elif filter_type == 'daily':
+        return start_date_obj.date().isoformat()  # No change for daily
+    elif filter_type == 'monthly':
+        # Calculate the last day of the month
+        return (start_date_obj + relativedelta(months=1) - relativedelta(days=1)).date().isoformat()
+    else:
+        raise ValueError(f"Unknown filter_type: {filter_type}")
 
 def insert_df_to_postgres(df, connection_uri, table_schema, table_name):
 
@@ -398,7 +390,7 @@ def save_tracking(**kwargs):
     else:
         start_date = str(kwargs['ti'].xcom_pull(task_ids='create_table'))
 
-    start_date = (parse(start_date) - timedelta(days=1))
+    start_date = (parse(start_date))
     end_date = f"{str(calculate_end_date(start_date, config['filter']))}"
 
     dag_name = kwargs['dag'].dag_id
