@@ -22,10 +22,23 @@ from dateutil.parser import parse
 from dateutil.relativedelta import relativedelta
 
 
-# Read the config file
+
+# Read the config file with edge case handling
 def read_config():
-    with open('<config_file>', 'r') as file:
-        config = json.load(file)
+    # Check if the file exists before attempting to open it
+    if not os.path.exists(config_file):
+        raise FileNotFoundError(f"The config file '{'<config_file>'}' does not exist.")
+    
+    try:
+        with open('<config_file>', 'r') as file:
+            # Attempt to load the JSON content
+            config = json.load(file)
+    except json.JSONDecodeError:
+        raise ValueError(f"The config file '{'<config_file>'}' contains invalid JSON.")
+    except Exception as e:
+        # Catch any other unexpected errors
+        raise RuntimeError(f"An error occurred while reading the config file '{'<config_file>'}': {e}")
+    
     return config
 
 def get_postgres_hook():
