@@ -172,71 +172,70 @@ def query_api(**kwargs):
     response = requests.get(get_url)
     data = response.json()
 
-    if "value" in data:
+    if "[value]:" in data:
+        if data["value"]:
+            df1 = pd.DataFrame(data["value"])
+            df = df1.drop_duplicates()
 
-        df1 = pd.DataFrame(data["value"])
-        df = df1.drop_duplicates()
-        df.columns = df.columns.str.lower()
+            # Store data to a Parquet file
+            parquet_file_path = f"/opt/airflow/api_dump/{config['indicator_name']}/{indicator_code}/{start_date}_{end_date}.parquet"
+            os.makedirs(os.path.dirname(parquet_file_path), exist_ok=True)
 
-        # Store data to a Parquet file
-        parquet_file_path = f"/opt/airflow/api_dump/{config['indicator_name']}/{indicator_code}/{start_date}_{end_date}.parquet"
-        os.makedirs(os.path.dirname(parquet_file_path), exist_ok=True)
+            fields = []
+            column_mappings = config["column_mappings"]
 
-        fields = []
-        column_mappings = config["column_mappings"]
+            # Convert columns based on column mappings
+            for column in column_mappings:
+                field_name = column['field-name'].lower()  # Case-insensitive
+                datatype = column['datatype'].lower()
 
-        # Convert columns based on column mappings
-        for column in column_mappings:
-            field_name = column['field-name'].lower()  # Case-insensitive
-            datatype = column['datatype'].lower()
+                # Handle the conversion
+                if datatype == "integer":
+                    df[field_name] = df[field_name].fillna(0).astype('int32')  # Convert to integer
+                elif datatype == "bigint":
+                    df[field_name] = df[field_name].fillna(0).astype('int64')  # Convert to bigint
+                elif datatype == "varchar":
+                    df[field_name] = df[field_name].astype(str)  # Convert to string
+                elif datatype == "decimal":
+                    df[field_name] = df[field_name].apply(
+                        lambda x: decimal.Decimal(str(round(x, 2))) if pd.notnull(x) else None
+                    )  # Convert to Decimal with rounding
+                elif datatype == "timestamp":
+                    df[field_name] = pd.to_datetime(df[field_name], errors='coerce')  # Convert to timestamp
+                else:
+                    df[field_name] = df[field_name].astype(str)  # Default to string
 
-            # Handle the conversion
-            if datatype == "integer":
-                df[field_name] = df[field_name].fillna(0).astype('int32')  # Convert to integer
-            elif datatype == "bigint":
-                df[field_name] = df[field_name].fillna(0).astype('int64')  # Convert to bigint
-            elif datatype == "varchar":
-                df[field_name] = df[field_name].astype(str)  # Convert to string
-            elif datatype == "decimal":
-                df[field_name] = df[field_name].apply(
-                    lambda x: decimal.Decimal(str(round(x, 2))) if pd.notnull(x) else None
-                )  # Convert to Decimal with rounding
-            elif datatype == "timestamp":
-                df[field_name] = pd.to_datetime(df[field_name], errors='coerce')  # Convert to timestamp
-            else:
-                df[field_name] = df[field_name].astype(str)  # Default to string
+            for column in column_mappings:
 
-        for column in column_mappings:
+                field_name = column['field-name'].lower()
+                datatype = column['datatype'].lower()
 
-            field_name = column['field-name'].lower()
-            datatype = column['datatype'].lower()
+                # Map to PyArrow types based on datatype
+                if datatype == "integer":
+                    pa_type = pa.int32()
+                elif datatype == "bigint":
+                    pa_type = pa.int64()
+                elif datatype == "varchar":
+                    pa_type = pa.string()
+                elif datatype == "decimal":
+                    pa_type = pa.decimal128(18, 2)
+                elif datatype == "timestamp":
+                    pa_type = pa.timestamp('ms')  # Millisecond precision
+                else:
+                    pa_type = pa.string()
 
-            # Map to PyArrow types based on datatype
-            if datatype == "integer":
-                pa_type = pa.int32()
-            elif datatype == "bigint":
-                pa_type = pa.int64()
-            elif datatype == "varchar":
-                pa_type = pa.string()
-            elif datatype == "decimal":
-                pa_type = pa.decimal128(18, 2)
-            elif datatype == "timestamp":
-                pa_type = pa.timestamp('ms')  # Millisecond precision
-            else:
-                pa_type = pa.string()
+                fields.append(pa.field(field_name, pa_type))
 
-            fields.append(pa.field(field_name, pa_type))
+                # Create PyArrow schema
+                schema = pa.schema(fields)
 
-            # Create PyArrow schema
-            schema = pa.schema(fields)
+                # Convert DataFrame to PyArrow Table with the defined schema
+                arrow_table = pa.Table.from_pandas(df, schema=schema, preserve_index=False)
 
-            # Convert DataFrame to PyArrow Table with the defined schema
-            arrow_table = pa.Table.from_pandas(df, schema=schema, preserve_index=False)
-
-            # Save to Parquet
-            pa.parquet.write_table(arrow_table, parquet_file_path)
-    
-        return 'upload_to_postgres'
+                # Save to Parquet
+                pa.parquet.write_table(arrow_table, parquet_file_path)
+        
+            return 'upload_to_postgres'
 
     return 'save_tracking'
 
