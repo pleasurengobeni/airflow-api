@@ -129,11 +129,15 @@ def get_max_date(**kwargs):
     table_schema = config['schema']
     table_name = f"{config['indicator_name']}_{config['indicator_code']}"
     dag_name = kwargs['dag'].dag_id
+
+    print('dag_name', dag_name)
     
     postgres_hook = get_postgres_hook()
 
     # Get the execution date for the DAG, if available
     execution_date = get_execution_timestamp(dag_name)
+    print('execution_date', execution_date)
+
     max_date = None
     
     # If execution date is available, use it; otherwise, use the max date from the table
@@ -144,7 +148,10 @@ def get_max_date(**kwargs):
         query = f"SELECT MAX(timedimensionend) FROM {table_schema}.{table_name}"
         output = postgres_hook.get_first(query)
         if output and output[0] is not None:
+            print('output[0]',  output[0])
             max_date = output[0] 
+    
+    print('max_date', max_date)
     
     if max_date:
         final_max_date = (parse(str(max_date)) + timedelta(days=1)) if max_date else None
