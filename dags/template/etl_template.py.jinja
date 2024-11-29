@@ -265,7 +265,7 @@ def get_execution_timestamp(dag_name):
 # Calculate the end date based on the filter
 def calculate_end_date(start_date, filter_type):
     if start_date:
-        start_date_obj = parse(start_date)
+        start_date_obj = parse(str(start_date))
         
         if filter_type == 'yearly':
             return (start_date_obj + relativedelta(years=1)).date().isoformat()
