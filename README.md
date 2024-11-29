@@ -28,7 +28,7 @@ Upload the Parquet file to the PostgreSQL database (via staging to avoid reinser
 
 
 # FILE STRUCTURE:
-
+```
 repo/
 ├── .github/                               # GitHub-specific configuration for CI/CD workflows
 │   └── workflows/                         # Contains GitHub Actions workflows
@@ -52,7 +52,7 @@ repo/
 ├── docker-compose.yaml                    # Docker Compose file for orchestrating multi-container environments (e.g., Airflow, Postgres)
 ├── datalake_init.sh                       # Shell script to initialize your data lake or related infrastructure
 └── README.md                              # Project documentation and instructions
-
+```
 
 # DEVOPS | CICD | TESTING:
 Version Control: Code and configurations are versioned and stored in GitHub.
@@ -62,12 +62,13 @@ Deployment: Once the code passes the CI pipeline, changes are deployed to the Ai
 
 
 # DEMO APPLICATIONS
-Apache Airflow: http://44.208.179.89:8080/home | username: admin | password: admin.123
-PgAdmin (Target DB): http://44.208.179.89:8081/ | username: ngobeni.pleasure@gmail.com | password: admin.123
-Metabase: http://44.208.179.89:3010/ | username: ngobeni.pleasure@gmail.com | password: admin.123
-Github Repository: https://github.com/pleasurengobeni/airflow-api
+- Apache Airflow: http://44.208.179.89:8080/home | username: admin | password: admin.123
 
+- PgAdmin (Target DB): http://44.208.179.89:8081/ | username: ngobeni.pleasure@gmail.com | password: admin.123
 
+- Metabase: http://44.208.179.89:3010/ | username: ngobeni.pleasure@gmail.com | password: admin.123
+
+- Github Repository: https://github.com/pleasurengobeni/airflow-api
 
 # LINUX UBUNTU SERVER 24.04 INSTALLATION
 
