@@ -20,13 +20,9 @@ def generate_etl_dag_file(config_file, config, **kwargs):
     with open(dag_template_path, 'r') as template_file:
         template = template_file.read()
     
-    
     # Replace placeholders in the template with values from the config
-    file_path=os.path.join(config_folder, config_file)
-    print(file_path)
+    file_path = os.path.join(config_folder, config_file)
     dag_file_content = template.replace('<config_file>', file_path).replace('<dag_name>', f"{config['indicator_name']}_{config['indicator_code']}_etl")
-    
-    print(dag_file_content)
     
     # Generate the file path for the new or updated DAG
     dag_filename = f"{config['indicator_name']}_{config['indicator_code']}_etl.py"
@@ -58,6 +54,9 @@ with DAG(
     # Initialize task groups to group tasks by indicator_name
     indicator_task_groups = {}
 
+    # Dictionary to track created tasks for each indicator_name
+    created_tasks = {}
+
     # Loop through all the JSON config files in the config folder
     for config_file in os.listdir(config_folder):
         if config_file.endswith('.json'):
@@ -72,21 +71,18 @@ with DAG(
                     group_id=f"{indicator_name}"
                 )
 
-            # # Create a dummy task for the indicator_name
-            # indicator_name_task = DummyOperator(
-            #     task_id=f"{indicator_name}_dummy",
-            #     task_group=indicator_task_groups[indicator_name]
-            # )
-            indicator_name_task = None
-            if f"{indicator_name}_dummy" not in globals():
+            # Create or reuse a dummy task for the indicator_name
+            if indicator_name not in created_tasks:
                 # Create a dummy task for the indicator_name if it doesn't exist
                 indicator_name_task = DummyOperator(
                     task_id=f"{indicator_name}_dummy",
                     task_group=indicator_task_groups[indicator_name]
                 )
+                # Store the created task in the dictionary to avoid recreating
+                created_tasks[indicator_name] = indicator_name_task
             else:
-                # If the task already exists, just assign it
-                indicator_name_task = globals()[f"{indicator_name}_dummy"]
+                # Reuse the existing task from the dictionary
+                indicator_name_task = created_tasks[indicator_name]
 
             # Create a task for each indicator_code under the respective indicator_name
             indicator_code_task = PythonOperator(
@@ -101,8 +97,3 @@ with DAG(
             latest_only_task >> start_task >> indicator_name_task >> indicator_code_task
 
             print(f"Configured task for {config['indicator_name']} - {config['indicator_code']}")
-
-    # Example of how to group tasks by indicator_name and indicator_code:
-    for indicator_name, task_group in indicator_task_groups.items():
-        # Tasks for each indicator_name group are already set in the loop above
-        pass  # No need for further action as the tasks are already grouped and connected
