@@ -18,6 +18,8 @@ from airflow.models import Variable
 import decimal
 from sqlalchemy import create_engine, text
 import psycopg2
+from dateutil.parser import parse
+from dateutil.relativedelta import relativedelta
 
 
 # Read the config file
@@ -156,9 +158,8 @@ def query_api(**kwargs):
     else:
         start_date = str(kwargs['ti'].xcom_pull(task_ids='create_table'))
 
-    print(start_date)
         
-    end_date = f"{str(calculate_end_date(str(start_date)[10], config['filter']))}"
+    end_date = f"{str(calculate_end_date(start_date, config['filter']))}"
     
 
     filter_start_date = f"{start_date}T00:00:00Z"
@@ -265,15 +266,21 @@ def get_execution_timestamp(dag_name):
 
 # Calculate the end date based on the filter
 def calculate_end_date(start_date, filter_type):
-    start_date_obj = datetime.strptime(str(start_date)[10], "%Y-%m-%d")
-    if filter_type == 'yearly':
-        return (start_date_obj + timedelta(days=365)).strftime("%Y-%m-%d")
-    elif filter_type == 'weekly':
-        return (start_date_obj + timedelta(weeks=1)).strftime("%Y-%m-%d")
-    elif filter_type == 'daily':
-        return start_date
-    elif filter_type == 'monthly':
-        return (start_date_obj + timedelta(days=30)).strftime("%Y-%m-%d")
+    if start_date:
+        start_date_obj = parse(start_date)
+        
+        if filter_type == 'yearly':
+            return (start_date_obj + relativedelta(years=1)).date().isoformat()
+        elif filter_type == 'weekly':
+            return (start_date_obj + relativedelta(weeks=1)).date().isoformat()
+        elif filter_type == 'daily':
+            return start_date  # No change for daily, return as-is
+        elif filter_type == 'monthly':
+            return (start_date_obj + relativedelta(months=1)).date().isoformat()
+        else:
+            raise ValueError(f"Unknown filter_type: {filter_type}")
+    else:
+        raise ValueError("start_date cannot be None")
 
 def insert_df_to_postgres(df, connection_uri, table_schema, table_name):
 
