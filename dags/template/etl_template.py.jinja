@@ -156,9 +156,11 @@ def query_api(**kwargs):
     else:
         start_date = str(kwargs['ti'].xcom_pull(task_ids='create_table'))
 
+    print(start_date)
         
     end_date = f"{str(calculate_end_date(str(start_date)[10], config['filter']))}"
     
+
     filter_start_date = f"{start_date}T00:00:00Z"
     filter_end_date = f"{end_date}T23:59:59Z"
     
