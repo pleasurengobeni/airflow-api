@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch, mock_open
 import json
 import os
+import sys
 
 from datetime import datetime
 from airflow.models import DagBag
