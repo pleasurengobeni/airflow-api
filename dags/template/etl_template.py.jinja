@@ -140,7 +140,7 @@ def get_max_date(**kwargs):
         max_date = execution_date 
     else:
         # Get the max date from the table or the start date if the table is empty
-        query = f"SELECT coalesce(MAX(timedimensionend), '{start_date}'::timestamp)::date FROM {table_schema}.{table_name}"
+        query = f"SELECT MAX(timedimensionend) FROM {table_schema}.{table_name}"
         max_date = postgres_hook.get_first(query)[0]
     
     final_max_date = (parse(str(max_date)) + timedelta(days=1)) if max_date else None
@@ -158,9 +158,10 @@ def query_api(**kwargs):
     else:
         start_date = str(kwargs['ti'].xcom_pull(task_ids='create_table'))
 
-        
     end_date = f"{str(calculate_end_date(start_date, config['filter']))}"
-    
+
+    print('start_date', start_date)
+    print('end_date', end_date)
 
     filter_start_date = f"{start_date}T00:00:00Z"
     filter_end_date = f"{end_date}T23:59:59Z"
