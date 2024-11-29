@@ -164,7 +164,7 @@ volumes:
     driver: local
   pgadmin_data:
     driver: local
-  metabase:
+  metabase-data:
     driver: local
 
 networks:
