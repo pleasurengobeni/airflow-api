@@ -18,6 +18,8 @@ from airflow.models import Variable
 import decimal
 from sqlalchemy import create_engine, text
 import psycopg2
+from dateutil.parser import parse
+from dateutil.relativedelta import relativedelta
 
 
 # Read the config file
@@ -141,9 +143,9 @@ def get_max_date(**kwargs):
         query = f"SELECT coalesce(MAX(timedimensionend), '{start_date}'::timestamp)::date FROM {table_schema}.{table_name}"
         max_date = postgres_hook.get_first(query)[0]
     
-    final_max_date = (max_date + timedelta(days=1)) if max_date else None
+    final_max_date = (parse(str(max_date)) + timedelta(days=1)) if max_date else None
 
-    return final_max_date
+    return final_max_date.date().isoformat()
 
 # Query the API
 def query_api(**kwargs):
@@ -157,8 +159,9 @@ def query_api(**kwargs):
         start_date = str(kwargs['ti'].xcom_pull(task_ids='create_table'))
 
         
-    end_date = f"{str(calculate_end_date(str(start_date)[10], config['filter']))}"
+    end_date = f"{str(calculate_end_date(start_date, config['filter']))}"
     
+
     filter_start_date = f"{start_date}T00:00:00Z"
     filter_end_date = f"{end_date}T23:59:59Z"
     
@@ -169,72 +172,70 @@ def query_api(**kwargs):
     response = requests.get(get_url)
     data = response.json()
 
-    if data["value"]:
+    if "[value]:" in data:
+        if data["value"]:
+            df1 = pd.DataFrame(data["value"])
+            df = df1.drop_duplicates()
 
-        df1 = pd.DataFrame(data["value"])
-        df = df1.drop_duplicates()
-        df.columns = df.columns.str.lower()
-        print(df.columns.tolist())
+            # Store data to a Parquet file
+            parquet_file_path = f"/opt/airflow/api_dump/{config['indicator_name']}/{indicator_code}/{start_date}_{end_date}.parquet"
+            os.makedirs(os.path.dirname(parquet_file_path), exist_ok=True)
 
-        # Store data to a Parquet file
-        parquet_file_path = f"/opt/airflow/api_dump/{config['indicator_name']}/{indicator_code}/{start_date}_{end_date}.parquet"
-        os.makedirs(os.path.dirname(parquet_file_path), exist_ok=True)
+            fields = []
+            column_mappings = config["column_mappings"]
 
-        fields = []
-        column_mappings = config["column_mappings"]
+            # Convert columns based on column mappings
+            for column in column_mappings:
+                field_name = column['field-name'].lower()  # Case-insensitive
+                datatype = column['datatype'].lower()
 
-        # Convert columns based on column mappings
-        for column in column_mappings:
-            field_name = column['field-name'].lower()  # Case-insensitive
-            datatype = column['datatype'].lower()
+                # Handle the conversion
+                if datatype == "integer":
+                    df[field_name] = df[field_name].fillna(0).astype('int32')  # Convert to integer
+                elif datatype == "bigint":
+                    df[field_name] = df[field_name].fillna(0).astype('int64')  # Convert to bigint
+                elif datatype == "varchar":
+                    df[field_name] = df[field_name].astype(str)  # Convert to string
+                elif datatype == "decimal":
+                    df[field_name] = df[field_name].apply(
+                        lambda x: decimal.Decimal(str(round(x, 2))) if pd.notnull(x) else None
+                    )  # Convert to Decimal with rounding
+                elif datatype == "timestamp":
+                    df[field_name] = pd.to_datetime(df[field_name], errors='coerce')  # Convert to timestamp
+                else:
+                    df[field_name] = df[field_name].astype(str)  # Default to string
 
-            # Handle the conversion
-            if datatype == "integer":
-                df[field_name] = df[field_name].fillna(0).astype('int32')  # Convert to integer
-            elif datatype == "bigint":
-                df[field_name] = df[field_name].fillna(0).astype('int64')  # Convert to bigint
-            elif datatype == "varchar":
-                df[field_name] = df[field_name].astype(str)  # Convert to string
-            elif datatype == "decimal":
-                df[field_name] = df[field_name].apply(
-                    lambda x: decimal.Decimal(str(round(x, 2))) if pd.notnull(x) else None
-                )  # Convert to Decimal with rounding
-            elif datatype == "timestamp":
-                df[field_name] = pd.to_datetime(df[field_name], errors='coerce')  # Convert to timestamp
-            else:
-                df[field_name] = df[field_name].astype(str)  # Default to string
+            for column in column_mappings:
 
-        for column in column_mappings:
+                field_name = column['field-name'].lower()
+                datatype = column['datatype'].lower()
 
-            field_name = column['field-name'].lower()
-            datatype = column['datatype'].lower()
+                # Map to PyArrow types based on datatype
+                if datatype == "integer":
+                    pa_type = pa.int32()
+                elif datatype == "bigint":
+                    pa_type = pa.int64()
+                elif datatype == "varchar":
+                    pa_type = pa.string()
+                elif datatype == "decimal":
+                    pa_type = pa.decimal128(18, 2)
+                elif datatype == "timestamp":
+                    pa_type = pa.timestamp('ms')  # Millisecond precision
+                else:
+                    pa_type = pa.string()
 
-            # Map to PyArrow types based on datatype
-            if datatype == "integer":
-                pa_type = pa.int32()
-            elif datatype == "bigint":
-                pa_type = pa.int64()
-            elif datatype == "varchar":
-                pa_type = pa.string()
-            elif datatype == "decimal":
-                pa_type = pa.decimal128(18, 2)
-            elif datatype == "timestamp":
-                pa_type = pa.timestamp('ms')  # Millisecond precision
-            else:
-                pa_type = pa.string()
+                fields.append(pa.field(field_name, pa_type))
 
-            fields.append(pa.field(field_name, pa_type))
+                # Create PyArrow schema
+                schema = pa.schema(fields)
 
-            # Create PyArrow schema
-            schema = pa.schema(fields)
+                # Convert DataFrame to PyArrow Table with the defined schema
+                arrow_table = pa.Table.from_pandas(df, schema=schema, preserve_index=False)
 
-            # Convert DataFrame to PyArrow Table with the defined schema
-            arrow_table = pa.Table.from_pandas(df, schema=schema, preserve_index=False)
-
-            # Save to Parquet
-            pa.parquet.write_table(arrow_table, parquet_file_path)
-    
-        return 'upload_to_postgres'
+                # Save to Parquet
+                pa.parquet.write_table(arrow_table, parquet_file_path)
+        
+            return 'upload_to_postgres'
 
     return 'save_tracking'
 
@@ -263,15 +264,21 @@ def get_execution_timestamp(dag_name):
 
 # Calculate the end date based on the filter
 def calculate_end_date(start_date, filter_type):
-    start_date_obj = datetime.strptime(str(start_date)[10], "%Y-%m-%d")
-    if filter_type == 'yearly':
-        return (start_date_obj + timedelta(days=365)).strftime("%Y-%m-%d")
-    elif filter_type == 'weekly':
-        return (start_date_obj + timedelta(weeks=1)).strftime("%Y-%m-%d")
-    elif filter_type == 'daily':
-        return start_date
-    elif filter_type == 'monthly':
-        return (start_date_obj + timedelta(days=30)).strftime("%Y-%m-%d")
+    if start_date:
+        start_date_obj = start_date if isinstance(start_date, datetime) else parse(start_date)
+        
+        if filter_type == 'yearly':
+            return (start_date_obj + relativedelta(years=1)).date().isoformat()
+        elif filter_type == 'weekly':
+            return (start_date_obj + relativedelta(weeks=1)).date().isoformat()
+        elif filter_type == 'daily':
+            return start_date  # No change for daily, return as-is
+        elif filter_type == 'monthly':
+            return (start_date_obj + relativedelta(months=1)).date().isoformat()
+        else:
+            raise ValueError(f"Unknown filter_type: {filter_type}")
+    else:
+        raise ValueError("start_date cannot be None")
 
 def insert_df_to_postgres(df, connection_uri, table_schema, table_name):
 
@@ -391,6 +398,7 @@ def save_tracking(**kwargs):
     else:
         start_date = str(kwargs['ti'].xcom_pull(task_ids='create_table'))
 
+    start_date = (parse(start_date) - timedelta(days=1))
     end_date = f"{str(calculate_end_date(start_date, config['filter']))}"
 
     dag_name = kwargs['dag'].dag_id
@@ -422,7 +430,7 @@ def delete_file(**kwargs):
             os.remove(parquet_file_path)
 
 # Define the DAG
-with DAG('<dag_name>', start_date=datetime(2024, 1, 1), catchup=False) as dag:
+with DAG('<dag_name>', start_date=datetime(2024, 1, 1), catchup=False, max_active_runs=1) as dag:
     
     start_task = DummyOperator(task_id='start',
     dag=dag)
