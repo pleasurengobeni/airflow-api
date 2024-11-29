@@ -23,7 +23,7 @@ class TestGenerateETLDagFile(unittest.TestCase):
         config_file = "test_config.json"
         
         # Mock the content of the DAG template
-        mock_open.return_value.read.return_value = "<dag_name>_etl template content"
+        mock_open.return_value.read.return_value = "<dag_name> template content"
         
         # Call the function
         generate_etl_dag_file(config_file, config)
@@ -32,7 +32,7 @@ class TestGenerateETLDagFile(unittest.TestCase):
         mock_open.assert_any_call('dags/template/etl_template.py.jinja', 'r')
         
         # Check if the correct content would be written to the DAG file
-        expected_dag_content = "<dag_name> template content".replace("<dag_name>", f"{config['indicator_name']}_{config['indicator_code']}")
+        expected_dag_content = "<dag_name>_etl template content".replace("<dag_name>", f"{config['indicator_name']}_{config['indicator_code']}")
         mock_open.assert_any_call(os.path.join('dags/etl', f"{config['indicator_name']}_{config['indicator_code']}_etl.py"), 'w')
         
         # Ensure os.remove was called (because the file doesn't exist, it should be skipped)
