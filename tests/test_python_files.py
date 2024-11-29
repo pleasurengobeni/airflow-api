@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch, mock_open
 import os
+
 import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -10,9 +11,9 @@ from dags.custom_dags.dag_builder import generate_etl_dag_file  # Now this impor
 class TestGenerateETLDagFile(unittest.TestCase):
 
     @patch("builtins.open", new_callable=mock_open)
-    @patch("os.path.exists", return_value=False)  # Ensure it simulates that 'dags/etl' doesn't exist
+    @patch("os.path.exists", return_value=False)  # Mock exists to simulate directory not existing
     @patch("os.remove")
-    @patch("os.makedirs")  # Mock os.makedirs
+    @patch("os.makedirs")  # Mock os.makedirs here
     def test_generate_etl_dag_file(self, mock_makedirs, mock_remove, mock_exists, mock_open):
         # Mock configuration data
         config = {
@@ -37,15 +38,10 @@ class TestGenerateETLDagFile(unittest.TestCase):
         mock_open.assert_any_call(os.path.join('dags/etl', f"{config['indicator_name']}_{config['indicator_code']}_etl.py"), 'w')
     
         # Ensure os.makedirs was called to ensure the folder exists
-        mock_makedirs.assert_called_with('dags/etl', exist_ok=True)  # Assert this call
+        mock_makedirs.assert_called_once_with('dags/etl', exist_ok=True)  # Check the exact call once
         
-        # Ensure the output file exists and was written
-        generated_file_path = os.path.join('dags/etl', f"{config['indicator_name']}_{config['indicator_code']}_etl.py")
-        with open(generated_file_path, 'w') as dag_file:
-            dag_file.write(expected_dag_content)
-            
-        # Confirm the output file exists and is written
-        self.assertTrue(os.path.exists(generated_file_path))
+        # Log output to help debug if needed
+        print(f"mock_makedirs calls: {mock_makedirs.call_args_list}")
 
 
 if __name__ == '__main__':
