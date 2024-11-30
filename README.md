@@ -17,6 +17,8 @@ Query the API for data based on the date range.
 Store the data in a Parquet file.
 Upload the Parquet file to the PostgreSQL database (via staging to avoid reinserting same data on to target table).
 
+# METABASE (REPORTING TOOL)
+I added Metabase to create a dashboard for some analytics, but the API I chose doesn't seem to have enough data to generate meaningful insights. I was trying to demonstrate end-to-end data infrastructure, from source to dashboarding.
 
 ## Bonus Points:
 
