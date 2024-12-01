@@ -17,6 +17,10 @@ Query the API for data based on the date range.
 Store the data in a Parquet file.
 Upload the Parquet file to the PostgreSQL database (via staging to avoid reinserting same data on to target table).
 
+
+# Coding
+I use GenAI tools like ChatGPT to speed up ETL code development by generating scripts, debugging, and optimizing workflows. These tools save time on repetitive tasks and enhance efficiency. However, the quality of output depends on my skill, vision, and the clarity of input I provide. With iterative refinement, GenAI complements my expertise, enabling faster delivery and a competitive edge in a fast-paced world. It empowers me to adapt quickly, build high-quality solutions, and focus on strategic development.
+
 # METABASE (REPORTING TOOL)
 I added Metabase to create a dashboard for some analytics, but the API I chose doesn't seem to have enough data to generate meaningful insights. I was trying to demonstrate end-to-end data infrastructure, from source to dashboarding.
 
@@ -72,9 +76,8 @@ Deployment: Once the code passes the CI pipeline, changes are deployed to the Ai
 
 - Github Repository: https://github.com/pleasurengobeni/airflow-api
 
+
 # LINUX UBUNTU SERVER 24.04 INSTALLATION
-
-
 
 ```
 #Make key unreadable
